@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "OpenAI Sign Up Auto-Clicker",
+  "version": "1.5.0",
+  "description": "Automates OpenAI signup on auth.openai.com: Sign up, random email + password, emailed verification code (mailcatch API), and phone verification via rented SMSPool numbers. Hacker-style on-page debug console.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "openai-signup-clicker@local",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "storage",
+    "cookies",
+    "tabs",
+    "proxy",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "action": {
+    "default_title": "OpenAI Auto-Signup",
+    "default_popup": "popup.html"
+  },
+  "host_permissions": [
+    "https://mail.example.com/*",
+    "https://api.smspool.net/*",
+    "https://*.openai.com/*",
+    "https://openai.com/*",
+    "https://*.chatgpt.com/*",
+    "https://chatgpt.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://auth.openai.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "homepage_url": "https://github.com/SeanDishman/openai-account-generator"
+}

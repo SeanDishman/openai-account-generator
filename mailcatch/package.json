@@ -1,0 +1,19 @@
+{
+  "name": "mailcatch",
+  "version": "1.0.0",
+  "description": "Wildcard catch-all mail server: receives mail for any address at a domain, shows it on a web UI, and exposes a JSON API.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "mailparser": "^3.7.1",
+    "smtp-server": "^3.13.4"
+  },
+  "homepage": "https://github.com/SeanDishman/openai-account-generator"
+}

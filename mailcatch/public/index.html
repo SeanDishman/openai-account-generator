@@ -1,0 +1,309 @@
+<!doctype html>
+<!-- https://github.com/SeanDishman/openai-account-generator -->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mailcatch — catch-all inbox</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2129;
+    --border: #2b323c;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #2f81f7;
+    --green: #3fb950;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: .3px; }
+  header .badge {
+    font-size: 12px; color: var(--muted); background: var(--panel2);
+    border: 1px solid var(--border); border-radius: 999px; padding: 2px 10px;
+  }
+  header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  header .spacer { flex: 1; }
+  header input {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 10px; width: 220px; outline: none;
+  }
+  header input:focus { border-color: var(--accent); }
+  header button {
+    background: var(--panel2); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  header button:hover { border-color: var(--accent); }
+  main { flex: 1; display: flex; min-height: 0; }
+  #list {
+    width: 380px; border-right: 1px solid var(--border); overflow-y: auto; background: var(--panel);
+  }
+  .item {
+    padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .item:hover { background: var(--panel2); }
+  .item.active { background: var(--panel2); border-left: 3px solid var(--accent); padding-left: 13px; }
+  .item .row1 { display: flex; justify-content: space-between; gap: 8px; }
+  .item .to { color: var(--accent); font-weight: 600; font-size: 13px; word-break: break-all; }
+  .item .time { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .item .subj { margin-top: 3px; font-size: 13px; }
+  .item .from { color: var(--muted); font-size: 12px; margin-top: 2px; word-break: break-all; }
+  #view { flex: 1; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
+  #view .meta {
+    padding: 18px 22px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  #view .meta h2 { margin: 0 0 10px; font-size: 18px; }
+  #view .meta .kv { font-size: 13px; color: var(--muted); margin: 2px 0; }
+  #view .meta .kv b { color: var(--text); font-weight: 600; display: inline-block; min-width: 62px; }
+  #view .body { flex: 1; }
+  #view iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+  #view pre {
+    margin: 0; padding: 22px; white-space: pre-wrap; word-break: break-word;
+    font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--text);
+  }
+  .empty { color: var(--muted); padding: 40px; text-align: center; margin: auto; }
+  .tabs { display: flex; gap: 6px; padding: 8px 22px 0; background: var(--panel); }
+  .tabs button {
+    background: none; border: 0; color: var(--muted); padding: 6px 10px; cursor: pointer;
+    border-bottom: 2px solid transparent; font-size: 13px;
+  }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--accent); }
+  .attach { padding: 6px 22px; font-size: 12px; color: var(--muted); background: var(--panel); }
+  code.pill { background: var(--panel2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+  #login {
+    position: fixed; inset: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center; background: var(--bg);
+  }
+  #login.show { display: flex; }
+  #login .card {
+    width: 320px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 28px; text-align: center;
+  }
+  #login .lock { font-size: 30px; }
+  #login h2 { margin: 10px 0 4px; font-size: 18px; }
+  #login p { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  #login input {
+    width: 100%; background: var(--panel2); border: 1px solid var(--border);
+    color: var(--text); border-radius: 8px; padding: 10px 12px; outline: none; font-size: 14px;
+  }
+  #login input:focus { border-color: var(--accent); }
+  #login button {
+    width: 100%; margin-top: 12px; background: var(--accent); border: 0; color: #fff;
+    border-radius: 8px; padding: 10px 12px; font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  #login button:hover { filter: brightness(1.08); }
+  #login .err { color: #f85149; font-size: 12px; min-height: 16px; margin-top: 10px; }
+  header #logout { display: none; }
+</style>
+</head>
+<body>
+  <div id="login">
+    <div class="card">
+      <div class="lock">🔒</div>
+      <h2>mailcatch</h2>
+      <p>Enter the password to view the inbox.</p>
+      <input id="login-pw" type="password" placeholder="Password" autocomplete="current-password" />
+      <button id="login-btn">Unlock</button>
+      <div class="err" id="login-err"></div>
+    </div>
+  </div>
+
+  <header>
+    <span class="dot"></span>
+    <h1>mailcatch</h1>
+    <span class="badge" id="count">0 messages</span>
+    <span class="spacer"></span>
+    <input id="filter" placeholder="filter by recipient…" />
+    <button id="clear">Clear</button>
+    <button id="logout">Log out</button>
+  </header>
+  <main>
+    <div id="list"></div>
+    <div id="view"><div class="empty">Select a message. Waiting for mail…<br><br>
+      Send anything to <code class="pill">whatever@yourdomain</code> and it shows up here.</div></div>
+  </main>
+
+<script>
+const listEl = document.getElementById('list');
+const viewEl = document.getElementById('view');
+const countEl = document.getElementById('count');
+const filterEl = document.getElementById('filter');
+let selectedId = null;
+let current = [];
+let bodyTab = 'html';
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function ago(iso) {
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return Math.floor(d) + 's ago';
+  if (d < 3600) return Math.floor(d/60) + 'm ago';
+  if (d < 86400) return Math.floor(d/3600) + 'h ago';
+  return new Date(iso).toLocaleString();
+}
+
+async function refresh() {
+  const q = filterEl.value.trim();
+  const url = '/api/emails' + (q ? ('?to=' + encodeURIComponent(q)) : '');
+  let res;
+  try { res = await fetch(url); }
+  catch (e) { return; }
+  if (res.status === 401) { lock(); return; }
+  const data = await res.json();
+  current = data.emails;
+  countEl.textContent = data.total + ' message' + (data.total === 1 ? '' : 's');
+  renderList();
+}
+
+function renderList() {
+  if (!current.length) {
+    listEl.innerHTML = '<div class="empty">No mail yet.</div>';
+    return;
+  }
+  listEl.innerHTML = current.map(e => `
+    <div class="item ${e.id === selectedId ? 'active' : ''}" data-id="${e.id}">
+      <div class="row1">
+        <span class="to">${esc((e.envelopeTo && e.envelopeTo[0]) || e.to)}</span>
+        <span class="time" title="${esc(e.receivedAt)}">${ago(e.receivedAt)}</span>
+      </div>
+      <div class="subj">${esc(e.subject)}</div>
+      <div class="from">${esc(e.from)}</div>
+    </div>`).join('');
+  listEl.querySelectorAll('.item').forEach(el =>
+    el.addEventListener('click', () => open(el.dataset.id)));
+}
+
+async function open(id) {
+  selectedId = id;
+  renderList();
+  let e;
+  try {
+    const res = await fetch('/api/emails/' + id);
+    if (res.status === 401) { lock(); return; }
+    e = await res.json();
+  } catch (err) { return; }
+  const hasHtml = !!e.html;
+  if (bodyTab === 'html' && !hasHtml) bodyTab = 'text';
+
+  const attach = e.attachments && e.attachments.length
+    ? `<div class="attach">📎 ${e.attachments.map(a => esc(a.filename) + ' (' + a.contentType + ')').join(', ')}</div>`
+    : '';
+
+  viewEl.innerHTML = `
+    <div class="meta">
+      <h2>${esc(e.subject)}</h2>
+      <div class="kv"><b>To</b> ${esc(e.envelopeTo ? e.envelopeTo.join(', ') : e.to)}</div>
+      <div class="kv"><b>From</b> ${esc(e.from)}</div>
+      <div class="kv"><b>Received</b> ${esc(new Date(e.receivedAt).toLocaleString())} &nbsp;·&nbsp; <code class="pill">${esc(e.receivedAt)}</code></div>
+    </div>
+    ${attach}
+    <div class="tabs">
+      ${hasHtml ? `<button data-tab="html" class="${bodyTab==='html'?'on':''}">HTML</button>` : ''}
+      <button data-tab="text" class="${bodyTab==='text'?'on':''}">Text</button>
+    </div>
+    <div class="body" id="body"></div>`;
+
+  viewEl.querySelectorAll('.tabs button').forEach(b =>
+    b.addEventListener('click', () => { bodyTab = b.dataset.tab; renderBody(e); }));
+  renderBody(e);
+}
+
+function renderBody(e) {
+  const body = document.getElementById('body');
+  viewEl.querySelectorAll('.tabs button').forEach(b =>
+    b.classList.toggle('on', b.dataset.tab === bodyTab));
+  if (bodyTab === 'html' && e.html) {
+    // sandboxed iframe so message HTML/JS can't touch this dashboard
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', '');
+    f.srcdoc = e.html;
+    body.innerHTML = '';
+    body.appendChild(f);
+  } else {
+    body.innerHTML = '<pre>' + esc(e.text || '(no text body)') + '</pre>';
+  }
+}
+
+filterEl.addEventListener('input', refresh);
+document.getElementById('clear').addEventListener('click', async () => {
+  if (!confirm('Clear all captured mail?')) return;
+  await fetch('/api/emails', { method: 'DELETE' });
+  selectedId = null;
+  viewEl.innerHTML = '<div class="empty">Cleared. Waiting for mail…</div>';
+  refresh();
+});
+
+// ---- auth gate ----
+const loginEl = document.getElementById('login');
+const loginPw = document.getElementById('login-pw');
+const loginBtn = document.getElementById('login-btn');
+const loginErr = document.getElementById('login-err');
+const logoutBtn = document.getElementById('logout');
+let pollTimer = null;
+
+function startPolling() {
+  loginEl.classList.remove('show');
+  logoutBtn.style.display = 'inline-block';
+  refresh();
+  if (!pollTimer) pollTimer = setInterval(refresh, 3000);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+// called when the server says we're not (or no longer) authenticated
+function lock() {
+  stopPolling();
+  logoutBtn.style.display = 'none';
+  loginEl.classList.add('show');
+  loginPw.focus();
+}
+
+async function doLogin() {
+  loginErr.textContent = '';
+  const pw = loginPw.value;
+  if (!pw) return;
+  loginBtn.disabled = true;
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    });
+    if (res.ok) { loginPw.value = ''; startPolling(); }
+    else { loginErr.textContent = 'Wrong password'; loginPw.select(); }
+  } catch (e) {
+    loginErr.textContent = 'Could not reach server';
+  } finally {
+    loginBtn.disabled = false;
+  }
+}
+loginBtn.addEventListener('click', doLogin);
+loginPw.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+logoutBtn.addEventListener('click', async () => {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {}
+  lock();
+});
+
+// boot: are we already logged in?
+(async () => {
+  try {
+    const s = await (await fetch('/api/session')).json();
+    if (s.authed) startPolling(); else lock();
+  } catch (e) { lock(); }
+})();
+</script>
+</body>
+</html>

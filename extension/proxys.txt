@@ -1,0 +1,15 @@
+# https://github.com/SeanDishman/openai-account-generator
+# Proxy list — one proxy per line. These are ONLY used on OpenAI domains.
+#
+# Format:  host:port:username:password
+#   (username:password optional -> use  host:port  for an open proxy)
+# Optional scheme prefix (default http):
+#   socks5://host:port:username:password
+#   http://host:port:username:password
+#
+# Lines starting with # and blank lines are ignored.
+# Add your own proxies below (the examples are commented out and do nothing):
+#
+# 123.45.67.89:8080:myuser:mypass
+# 98.76.54.32:1080
+# socks5://11.22.33.44:1080:myuser:mypass
