@@ -410,6 +410,18 @@
     `${FIRST_NAMES[rand(0, FIRST_NAMES.length - 1)]} ${LAST_NAMES[rand(0, LAST_NAMES.length - 1)]}`;
   const genAge = () => String(rand(20, 40));
 
+  // Pick a real birthday for someone aged 20-50. We choose a random calendar day
+  // between (today - 50y) and (today - 20y), so the month/day are always valid and
+  // the resulting age is guaranteed to land in [20, 50].
+  const genBirthday = () => {
+    const now = new Date();
+    const youngest = new Date(now.getFullYear() - 20, now.getMonth(), now.getDate()); // age 20
+    const oldest = new Date(now.getFullYear() - 50, now.getMonth(), now.getDate()); // age 50
+    const t = oldest.getTime() + Math.floor(Math.random() * (youngest.getTime() - oldest.getTime() + 1));
+    const d = new Date(t);
+    return { year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate() };
+  };
+
   const genPassword = () => {
     const lower = "abcdefghijkmnpqrstuvwxyz";
     const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
@@ -449,6 +461,79 @@
     }
     el.dispatchEvent(new Event("change", { bubbles: true }));
     ok(`${label} filled -> current value: "${el.value}"`);
+  }
+
+  // ---- React-Aria segmented date field (the OpenAI "Birthday" input) ----
+  // OpenAI renders the birthday as a React-Aria Components DateField: three
+  // contenteditable <div role="spinbutton"> segments (month/day/year), NOT a plain
+  // <input>. It ships pre-filled with today's date, so setValue()/humanType() do
+  // nothing here — the segments only react to keyboard + `beforeinput` events.
+
+  // Locate the three segments by their data-type (order-independent).
+  const findDateSegments = () => {
+    const seg = (type) =>
+      document.querySelector(`[role="spinbutton"][data-type="${type}"]`) ||
+      document.querySelector(`[contenteditable="true"][data-type="${type}"]`);
+    const month = seg("month");
+    const day = seg("day");
+    const year = seg("year");
+    return month && day && year ? { month, day, year } : null;
+  };
+
+  // Clear one segment (Backspace until empty), then type its zero-padded digits.
+  // React-Aria consumes a cancelable `beforeinput` InputEvent for entry
+  // (insertText); we pair each digit with the matching keydown/keyup so it looks
+  // like real typing.
+  async function typeDateSegment(seg, digits, label) {
+    seg.focus();
+    seg.click();
+    await sleep(rand(90, 180));
+
+    // Wipe whatever's pre-filled (today's date) — "hit delete till no numbers".
+    // React-Aria handles Backspace in its keydown handler, so a bare keydown clears
+    // the segment. We deliberately do NOT send a `deleteContentBackward` beforeinput
+    // here: older React-Aria builds do `enteredKeys + e.data` and would inject the
+    // literal string "null". (Typing below also overwrites a focused segment, so
+    // this loop is belt-and-suspenders to satisfy "delete till empty".)
+    for (let i = 0; i < 6; i++) {
+      seg.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", code: "Backspace", keyCode: 8, which: 8, bubbles: true, cancelable: true }));
+      seg.dispatchEvent(new KeyboardEvent("keyup", { key: "Backspace", code: "Backspace", keyCode: 8, which: 8, bubbles: true }));
+      await sleep(rand(25, 65));
+    }
+
+    // type the value one digit at a time (zero-padded so single-digit months/days
+    // commit immediately instead of waiting for a possible second digit)
+    for (const ch of String(digits)) {
+      const kc = 48 + Number(ch);
+      seg.dispatchEvent(new KeyboardEvent("keydown", { key: ch, code: "Digit" + ch, keyCode: kc, which: kc, bubbles: true, cancelable: true }));
+      seg.dispatchEvent(new InputEvent("beforeinput", { inputType: "insertText", data: ch, bubbles: true, cancelable: true }));
+      seg.dispatchEvent(new KeyboardEvent("keyup", { key: ch, code: "Digit" + ch, keyCode: kc, which: kc, bubbles: true }));
+      await sleep(rand(60, 130));
+    }
+    dbg(`[BIRTHDAY] ${label} segment -> "${digits}" (shows "${(seg.textContent || "").trim()}")`);
+  }
+
+  // Fill the birthday date field for a random 20-50 y/o. Returns true if the field
+  // was found and filled, false if there's no date field on the page (caller then
+  // falls back to the legacy "Age" input).
+  async function fillBirthday() {
+    const segs = await waitFor(findDateSegments, "birthday date field", 8000);
+    if (!segs) return false;
+
+    const b = genBirthday();
+    const mm = String(b.month).padStart(2, "0");
+    const dd = String(b.day).padStart(2, "0");
+    const yyyy = String(b.year);
+    log(`[BIRTHDAY] entering ${mm}/${dd}/${yyyy} (age ${new Date().getFullYear() - b.year})`);
+
+    await typeDateSegment(segs.month, mm, "month");
+    await sleep(rand(120, 260));
+    await typeDateSegment(segs.day, dd, "day");
+    await sleep(rand(120, 260));
+    await typeDateSegment(segs.year, yyyy, "year");
+
+    ok(`[BIRTHDAY] filled -> ${mm}/${dd}/${yyyy}`);
+    return true;
   }
 
   // ------------------- background / mailcatch messaging -------------------
@@ -836,12 +921,17 @@
     const fullName = genFullName();
     await humanType(nameInput, fullName, "full name");
 
-    // Age
+    // Birthday — OpenAI replaced the old "Age" input with a segmented date field.
+    // Fill that for a random 20-50 y/o; fall back to a legacy "Age" input if some
+    // flow still shows it.
     await sleep(rand(300, 1000)); // wait 0.3-1s
-    const ageInput = findLabeledInput("Age");
-    if (!ageInput) return err("[PROFILE] Age field not found");
-    const age = genAge();
-    await humanType(ageInput, age, "age");
+    const filledBirthday = await fillBirthday();
+    if (!filledBirthday) {
+      const ageInput = findLabeledInput("Age");
+      if (!ageInput) return err("[PROFILE] neither Birthday date field nor Age field found");
+      warn("[PROFILE] no birthday date field — falling back to legacy Age input");
+      await humanType(ageInput, genAge(), "age");
+    }
 
     // Finish creating account
     await sleep(rand(500, 1200)); // wait 0.5-1.2s
@@ -930,6 +1020,9 @@
   // per tab so page navigations don't re-fetch it.
   async function showAndVerifyProxy() {
     const pr = await send({ type: "getCurrentProxy" });
+    if (pr && pr.noProxy) {
+      return warn("[PROXY] NO-PROXY mode ON — OpenAI traffic uses your REAL IP (verification skipped)");
+    }
     if (pr && pr.proxy) ok(`[PROXY] connected to proxy ${pr.proxy} (${pr.count} in pool)`);
     else return warn(`[PROXY] no proxy set — check proxys.txt (${(pr && pr.count) || 0} loaded)`);
 

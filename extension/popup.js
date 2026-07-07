@@ -5,6 +5,7 @@
 const BX = typeof browser !== "undefined" ? browser : chrome;
 
 const $toggle = document.getElementById("toggle");
+const $noproxy = document.getElementById("noproxy");
 const $proxy = document.getElementById("proxy");
 const $pool = document.getElementById("pool");
 
@@ -25,6 +26,12 @@ function send(msg) {
 // Show the current OpenAI proxy + how many are in the pool.
 async function showProxy() {
   const r = await send({ type: "getCurrentProxy" });
+  if (r && r.noProxy) {
+    // no-proxy mode: traffic uses the real IP regardless of the pool
+    $proxy.textContent = "disabled (real IP)";
+    $pool.textContent = r.count ? `${r.count} loaded` : "—";
+    return;
+  }
   if (r && r.proxy) {
     $proxy.textContent = r.proxy;
     $pool.textContent = `${r.count} loaded`;
@@ -38,12 +45,14 @@ async function showProxy() {
 }
 
 async function refresh() {
-  // enabled state (default ON)
+  // enabled state (default ON) + no-proxy state (default OFF)
   try {
-    const st = await BX.storage.local.get("enabled");
+    const st = await BX.storage.local.get(["enabled", "noProxy"]);
     $toggle.checked = st.enabled !== false;
+    $noproxy.checked = st.noProxy === true;
   } catch (e) {
     $toggle.checked = true;
+    $noproxy.checked = false;
   }
   await showProxy();
 }
@@ -54,6 +63,15 @@ $toggle.addEventListener("change", async () => {
   } catch (e) {
     /* ignore */
   }
+});
+
+$noproxy.addEventListener("change", async () => {
+  try {
+    await BX.storage.local.set({ noProxy: $noproxy.checked });
+  } catch (e) {
+    /* ignore */
+  }
+  await showProxy(); // reflect real-IP / proxy label immediately
 });
 
 document.getElementById("openTab").addEventListener("click", async () => {

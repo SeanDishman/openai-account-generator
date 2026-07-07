@@ -125,11 +125,29 @@ async function loadEnabled() {
 }
 const enabledReady = loadEnabled();
 
+// ---- optional "no proxy" mode (persisted). When ON, OpenAI traffic goes DIRECT
+// over the real IP instead of through a proxy. Default OFF (proxy in use). ----
+let noProxyCache = false; // mirrors storage.local "noProxy"
+async function loadNoProxy() {
+  try {
+    const st = await BX.storage.local.get("noProxy");
+    noProxyCache = st.noProxy === true; // default OFF
+  } catch (e) {
+    /* storage optional */
+  }
+}
+const noProxyReady = loadNoProxy();
+
 if (BX.storage && BX.storage.onChanged) {
   BX.storage.onChanged.addListener((changes, area) => {
-    if (area === "local" && changes.enabled) {
+    if (area !== "local") return;
+    if (changes.enabled) {
       enabledCache = changes.enabled.newValue !== false;
       console.log(`[auto-signup bg] tool ${enabledCache ? "ENABLED" : "DISABLED"}`);
+    }
+    if (changes.noProxy) {
+      noProxyCache = changes.noProxy.newValue === true;
+      console.log(`[auto-signup bg] no-proxy mode ${noProxyCache ? "ON (real IP)" : "OFF (proxied)"}`);
     }
   });
 }
@@ -203,7 +221,9 @@ if (BX.proxy && BX.proxy.onRequest) {
     async () => {
       await currentProxyReady;
       await enabledReady;
+      await noProxyReady;
       if (!enabledCache) return { type: "direct" }; // tool off -> direct
+      if (noProxyCache) return { type: "direct" }; // no-proxy mode -> real IP
       return proxyInfoFor(currentProxy);
     },
     { urls: OPENAI_PROXY_URLS }
@@ -223,7 +243,8 @@ if (BX.webRequest && BX.webRequest.onAuthRequired) {
         if (!details.isProxy) return {}; // leave site logins alone
         await currentProxyReady;
         await enabledReady;
-        if (enabledCache && currentProxy && currentProxy.user) {
+        await noProxyReady;
+        if (enabledCache && !noProxyCache && currentProxy && currentProxy.user) {
           return {
             authCredentials: {
               username: currentProxy.user,
@@ -346,7 +367,9 @@ function scheduleAccountCleanup() {
 async function verifyProxy() {
   await currentProxyReady;
   await enabledReady;
+  await noProxyReady;
   if (!enabledCache) return { ok: false, error: "tool disabled" };
+  if (noProxyCache) return { ok: false, noProxy: true, error: "no-proxy mode — using real IP" };
   if (!currentProxy) return { ok: false, error: "no proxy loaded" };
 
   const ctrl = new AbortController();
@@ -580,6 +603,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           type: p ? p.type : null,
           count: PROXIES.length,
           enabled: enabledCache,
+          noProxy: noProxyCache,
         })
       )
       .catch((e) => sendResponse({ error: String(e) }));
