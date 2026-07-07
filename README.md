@@ -5,7 +5,7 @@ A Firefox extension that automates the OpenAI (ChatGPT) sign-up flow on
 `auth.openai.com` end to end — it fills a random name, email, and password,
 reads the emailed verification code, and completes phone verification with a
 rented number. It routes OpenAI traffic through per-account rotating proxies,
-verifies the proxy on start, and clears cookies between runs.
+verifies the proxy on start, and clears cookies between runs. (for the best results use residental proxys)
 
 > **Repo:** https://github.com/SeanDishman/openai-account-generator
 >
